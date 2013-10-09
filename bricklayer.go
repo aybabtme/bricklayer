@@ -17,6 +17,8 @@ import (
 const (
 	defaultPort = 3000
 	partsPath   = "parts"
+	indexPath   = "index"
+	partsIndex  = "parts"
 )
 
 var (
@@ -88,7 +90,9 @@ func seedDB(db *dskvs.Store) error {
 		}
 	}
 
-	for _, biobrick := range allBricks {
+	// Optimization for index query
+	allBioPartName := make([]string, len(allBricks))
+	for i, biobrick := range allBricks {
 		brickData, err := json.Marshal(&biobrick)
 		if err != nil {
 			return fmt.Errorf("could not get JSON from biobrick '%s', %v", biobrick.PartName, err)
@@ -98,9 +102,15 @@ func seedDB(db *dskvs.Store) error {
 		if err != nil {
 			return fmt.Errorf("could not persist biobrick '%s' to DB, %v", biobrick.PartName, err)
 		}
+		allBioPartName[i] = biobrick.PartName
 	}
 
-	return nil
+	// Save the extracted index
+	indexData, err := json.Marshal(allBioPartName)
+	if err != nil {
+		return fmt.Errorf("could not serialize all part names, %v", err)
+	}
+	return db.Put(fmt.Sprintf("%s/%s", indexPath, partsIndex), indexData)
 }
 
 func getPort() int {

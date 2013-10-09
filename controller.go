@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/aybabtme/bricklayer/bricks"
 	"github.com/aybabtme/color/brush"
 	"github.com/gorilla/mux"
 	"net/http"
@@ -18,7 +16,7 @@ func RequestTimeLog(start time.Time) {
 func AllPartsHandler(resp http.ResponseWriter, req *http.Request) {
 	defer RequestTimeLog(time.Now())
 
-	all, err := db.GetAll("parts")
+	partsIndex, ok, err := db.Get(fmt.Sprintf("%s/%s", indexPath, partsIndex))
 	if err != nil {
 		response := "cannot fulfill request for all parts"
 		responseCode := http.StatusServiceUnavailable
@@ -26,32 +24,15 @@ func AllPartsHandler(resp http.ResponseWriter, req *http.Request) {
 		http.Error(resp, response, responseCode)
 		return
 	}
-
-	var biobrick bricks.Biobrick
-	var allBrickNames []string
-
-	for _, part := range all {
-		err := json.Unmarshal(part, &biobrick)
-		if err != nil {
-			response := "cannot fulfill request"
-			responseCode := http.StatusServiceUnavailable
-			logErr(req, err, response, responseCode)
-			serr.Printf("json=%s", brush.DarkGray(string(part)))
-			return
-		}
-		allBrickNames = append(allBrickNames, biobrick.PartName)
-	}
-
-	allData, err := json.Marshal(allBrickNames)
-	if err != nil {
-		response := "cannot fulfill request for all parts"
+	if !ok {
+		response := "index not built"
 		responseCode := http.StatusServiceUnavailable
 		logErr(req, err, response, responseCode)
 		http.Error(resp, response, responseCode)
 		return
 	}
 
-	respondWithBytes(resp, req, allData)
+	respondWithBytes(resp, req, partsIndex)
 }
 
 func PartsHandler(resp http.ResponseWriter, req *http.Request) {
