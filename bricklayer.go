@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 )
 
@@ -30,7 +29,10 @@ type Biobrick struct {
 
 func main() {
 
-	var partString string
+	partString, err := GetAllPartsString()
+	if err != nil {
+		panic(err)
+	}
 
 	for i, val := range strings.Split(partString, ">") {
 		fmt.Println(val)
