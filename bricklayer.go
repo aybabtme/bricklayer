@@ -1,120 +1,122 @@
 package main
 
 import (
-	"bytes"
-	"code.google.com/p/go.net/html"
+	"encoding/json"
+	"flag"
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
-	"io"
-	"io/ioutil"
+	"github.com/aybabtme/bricklayer/util"
+	"github.com/aybabtme/color/brush"
+	"github.com/aybabtme/dskvs"
+	"github.com/gorilla/mux"
 	"log"
 	"net/http"
-	"strings"
+	"os"
+	"strconv"
 )
 
 const (
-	dbPath            = "db"
-	allPartURL        = "http://parts.igem.org/fasta/parts/All_Parts"
-	allPartFilename   = "allpart.dump"
-	downloadBlockSize = 1 << 13 // 8k, size of a packet
+	defaultPort = 3000
+	partsPath   = "parts"
 )
 
-type Biobrick struct {
-	name     string
-	letter   rune
-	number   int
-	desc     string
-	sequence string
+var (
+	port   *int
+	doSeed *bool
+
+	sout *log.Logger
+	serr *log.Logger
+
+	dbPath = "db"
+	db     *dskvs.Store
+)
+
+func init() {
+	port = flag.Int("port", defaultPort, "port on which to listen for request")
+	doSeed = flag.Bool("seedDB", false, "seed the DB with data from the iGem server")
+	flag.Parse()
 }
 
 func main() {
 
-	partString, err := GetAllPartsString()
+	sout = log.New(os.Stdout, "["+brush.Green("INFO").String()+"]\t", log.LstdFlags)
+	serr = log.New(os.Stderr, "["+brush.Red("ERR").String()+"] \t", log.LstdFlags)
+
+	sout.Printf("opening DB at path '%s'", dbPath)
+	store, err := dskvs.Open(dbPath)
 	if err != nil {
 		panic(err)
 	}
+	defer db.Close()
+	db = store
 
-	for i, val := range strings.Split(partString, ">") {
-		fmt.Println(val)
-		if i > 10 {
-			return
+	if *doSeed {
+		sout.Printf("seeding DB with iGem API", dbPath)
+		if err := seedDB(db); err != nil {
+			panic(err)
 		}
+	}
+
+	sout.Printf("registering HTTP endpoints")
+
+	router := mux.NewRouter()
+	router.HandleFunc(fmt.Sprintf("/api/%s/", partsPath), AllPartsHandler)
+	router.HandleFunc(fmt.Sprintf("/api/%s/{name}", partsPath), PartsHandler)
+	http.Handle("/", router)
+
+	listenAddr := fmt.Sprintf(":%d", *port)
+	sout.Printf("listening on %s", brush.Blue(listenAddr))
+	if err := http.ListenAndServe(listenAddr, router); err != nil {
+		panic(err)
 	}
 }
 
-func GetAllPartsString() (string, error) {
-	partRaw, err := ioutil.ReadFile(allPartFilename)
+func seedDB(db *dskvs.Store) error {
+	allBricks, err := util.DownloadAllBiobricks()
 	if err != nil {
-		partString, err := DownloadAllParts()
+		return fmt.Errorf("failed to download parts in seed of DB, %v", err)
+	}
+
+	allParts, err := db.GetAll(partsPath)
+	if err != nil {
+		return fmt.Errorf("could not verify if DB is empty, %v", err)
+	}
+
+	if len(allParts) != 0 {
+		err = db.DeleteAll(partsPath)
 		if err != nil {
-			return "", err
+			return fmt.Errorf("could not delete all parts before seeding DB, %v", err)
 		}
-		err = ioutil.WriteFile(allPartFilename, []byte(partString), 0775)
+	}
+
+	for _, biobrick := range allBricks {
+		brickData, err := json.Marshal(&biobrick)
 		if err != nil {
-			log.Printf("Failed to save %s file, %v\n", allPartFilename, err)
-		}
-		return partString, nil
-	}
-
-	return string(partRaw), nil
-
-}
-
-func DownloadAllParts() (string, error) {
-
-	resp, err := http.Get(allPartURL)
-	if err != nil {
-		return "", fmt.Errorf("getting %s, %v", allPartURL, err)
-	}
-	defer resp.Body.Close()
-
-	progressUpdt := GetProgressFunc(resp.ContentLength)
-
-	fileReader, err := DownloadFile(resp.Body, resp.ContentLength, progressUpdt)
-	if err != nil {
-		return "", fmt.Errorf("reading content from body, %v", err)
-	}
-
-	node, err := html.Parse(fileReader)
-	if err != nil {
-		return "", fmt.Errorf("parsing file response, %v", err)
-	}
-
-	partContent := goquery.NewDocumentFromNode(node).Find("pre")
-
-	if partContent == nil {
-		return "", fmt.Errorf("expected content but none found")
-	}
-	return partContent.Text(), nil
-}
-
-func GetProgressFunc(total int64) func(int64) {
-	return func(i int64) {
-		percDone := float64(i) / float64(total) * 100.0
-		fmt.Printf("%3.2f percent done, %d/%d bytes\r", percDone, i, total)
-	}
-}
-
-func DownloadFile(r io.Reader, totalSize int64, progressUpdt func(i int64)) (io.Reader, error) {
-	out := bytes.NewBuffer(make([]byte, 0, totalSize))
-	byteRead := int64(0)
-
-	fmt.Println("Download starts")
-	for {
-
-		n, err := io.CopyN(out, r, downloadBlockSize)
-
-		byteRead += n
-		progressUpdt(byteRead)
-
-		if n < downloadBlockSize {
-			break
-		} else if err != nil {
-			return nil, err
+			return fmt.Errorf("could not get JSON from biobrick '%s', %v", biobrick.PartName, err)
 		}
 
+		err = db.Put(fmt.Sprintf("%s/%s", partsPath, biobrick.PartName), brickData)
+		if err != nil {
+			return fmt.Errorf("could not persist biobrick '%s' to DB, %v", biobrick.PartName, err)
+		}
 	}
-	fmt.Println("\nDownload done")
 
-	return out, nil
+	return nil
+}
+
+func getPort() int {
+
+	if port != nil {
+		return *port
+	}
+
+	envPortStr := os.Getenv("BRICKLAYER_PORT")
+	if envPortStr == "" {
+		envPort, err := strconv.Atoi(envPortStr)
+		if err == nil {
+			return envPort
+		}
+		log.Printf("error parsing BRICKLAYER_PORT variable, %v, falling back to default %d", err, defaultPort)
+	}
+
+	return defaultPort
 }
