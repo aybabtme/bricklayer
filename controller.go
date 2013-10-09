@@ -27,15 +27,16 @@ func AllPartsHandler(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var biobrick *bricks.Biobrick
+	var biobrick bricks.Biobrick
 	var allBrickNames []string
 
 	for _, part := range all {
-		err := json.Unmarshal(part, biobrick)
+		err := json.Unmarshal(part, &biobrick)
 		if err != nil {
 			response := "cannot fulfill request"
 			responseCode := http.StatusServiceUnavailable
 			logErr(req, err, response, responseCode)
+			serr.Printf("json=%s", brush.DarkGray(string(part)))
 			return
 		}
 		allBrickNames = append(allBrickNames, biobrick.PartName)

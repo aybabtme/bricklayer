@@ -38,8 +38,8 @@ func init() {
 
 func main() {
 
-	sout = log.New(os.Stdout, "["+brush.Green("INFO").String()+"]\t", log.LstdFlags)
-	serr = log.New(os.Stderr, "["+brush.Red("ERR").String()+"] \t", log.LstdFlags)
+	sout = log.New(os.Stdout, "["+brush.Green("OK ").String()+"]\t", log.LstdFlags)
+	serr = log.New(os.Stderr, "["+brush.Red("ERR").String()+"]\t", log.LstdFlags)
 
 	sout.Printf("opening DB at path '%s'", dbPath)
 	store, err := dskvs.Open(dbPath)
@@ -50,7 +50,7 @@ func main() {
 	db = store
 
 	if *doSeed {
-		sout.Printf("seeding DB with iGem API", dbPath)
+		sout.Printf("seeding DB with iGem API")
 		if err := seedDB(db); err != nil {
 			panic(err)
 		}
