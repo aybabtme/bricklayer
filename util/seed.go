@@ -10,8 +10,8 @@ const (
 	dbPath          = "db"
 	allPartFilename = "allpart.dump"
 
-	// iGemAllPartURL = "http://parts.igem.org/fasta/parts/All_Parts"
-	iGemAllPartURL = "http://127.0.0.1:8080/All_Parts"
+	iGemAllPartURL = "http://parts.igem.org/fasta/parts/All_Parts"
+	// iGemAllPartURL = "http://127.0.0.1:8080/All_Parts"
 
 	downloadBlockSize = 1 << 13 // 8k, size of a packet
 )
