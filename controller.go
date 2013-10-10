@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/md5"
 	"fmt"
 	"github.com/aybabtme/color/brush"
 	"github.com/gorilla/mux"
@@ -32,7 +33,7 @@ func AllPartsHandler(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	respondWithBytes(resp, req, partsIndex)
+	respondIfChanged(resp, req, partsIndex)
 }
 
 func PartsHandler(resp http.ResponseWriter, req *http.Request) {
@@ -65,8 +66,39 @@ func PartsHandler(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	respondWithBytes(resp, req, partData)
+	respondIfChanged(resp, req, partData)
 
+}
+
+func computeHash(data []byte) string {
+	h := md5.New()
+	_, err := h.Write(data)
+	if err != nil {
+		panic(err)
+	}
+	return string(h.Sum(nil))
+}
+
+func respondIfChanged(resp http.ResponseWriter, req *http.Request, data []byte) {
+	currentHash := computeHash(data)
+	ifNotMatchHeader := "If-None-Match"
+
+	eTagHash := req.Header.Get(ifNotMatchHeader)
+	if len(eTagHash) == 0 || eTagHash != currentHash {
+		resp.Header().Set("ETag", currentHash)
+
+		response := "ok"
+		responseCode := http.StatusOK
+		logInfo(req, response, responseCode)
+
+		respondWithBytes(resp, req, data)
+		return
+	}
+
+	response := "not modified"
+	responseCode := http.StatusNotModified
+	logInfo(req, response, responseCode)
+	resp.WriteHeader(responseCode)
 }
 
 func respondWithBytes(resp http.ResponseWriter, req *http.Request, data []byte) {
@@ -79,9 +111,23 @@ func respondWithBytes(resp http.ResponseWriter, req *http.Request, data []byte) 
 	}
 }
 
+func colorizeHttpCode(httpCode int) string {
+	codeStr := strconv.Itoa(httpCode)
+	if httpCode >= 500 {
+		return brush.Red(codeStr).String()
+	} else if httpCode >= 400 {
+		return brush.DarkRed(codeStr).String()
+	} else if httpCode >= 300 {
+		return brush.DarkYellow(codeStr).String()
+	} else if httpCode >= 200 {
+		return brush.DarkGreen(codeStr).String()
+	}
+	return brush.Red(codeStr).String()
+}
+
 func logInfo(req *http.Request, response string, responseCode int) {
 	sout.Printf("%s - request by %s for '%s', response=%s",
-		brush.DarkYellow(strconv.Itoa(responseCode)),
+		colorizeHttpCode(responseCode),
 		brush.Cyan(req.RemoteAddr),
 		brush.Blue(req.RequestURI),
 		brush.DarkGreen(response),
@@ -89,8 +135,9 @@ func logInfo(req *http.Request, response string, responseCode int) {
 }
 
 func logErr(req *http.Request, err error, response string, responseCode int) {
+
 	serr.Printf("%s - request by %s for '%s', err = %s, response=%s",
-		brush.Red(strconv.Itoa(responseCode)),
+		colorizeHttpCode(responseCode),
 		brush.Cyan(req.RemoteAddr),
 		brush.Blue(req.RequestURI),
 		brush.Yellow(err.Error()),
