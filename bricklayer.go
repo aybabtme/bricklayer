@@ -94,6 +94,18 @@ func seedDB(db *dskvs.Store) error {
 		}
 	}
 
+	extendedParts, err := db.GetAll(extendedPartsPath)
+	if err != nil {
+		return fmt.Errorf("could not verify if DB is empty, %v", err)
+	}
+
+	if len(extendedParts) != 0 {
+		err = db.DeleteAll(extendedPartsPath)
+		if err != nil {
+			return fmt.Errorf("could not delete all extended parts before seeding DB, %v", err)
+		}
+	}
+
 	// Optimization for index query
 	allBioPartName := make([]string, len(allBricks))
 	for i, biobrick := range allBricks {
