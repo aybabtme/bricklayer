@@ -20,7 +20,7 @@ type ExtendedBiobrick struct {
 	SampleStatus      string         `xml:"sample_status" json:"sample_status"`
 	Results           string         `xml:"part_results" json:"results"`
 	Nickname          string         `xml:"part_nickname" json:"nickname"`
-	Rating            int            `xml:"part_rating" json:"rating"`
+	Rating            string         `xml:"part_rating" json:"rating"`
 	URL               string         `xml:"part_url" json:"url"`
 	Entered           string         `xml:"part_entered" json:"entered"`
 	Author            string         `xml:"part_author" json:"author"`
