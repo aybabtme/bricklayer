@@ -24,9 +24,9 @@ type ExtendedBiobrick struct {
 	URL               string         `xml:"part_url" json:"url"`
 	Entered           string         `xml:"part_entered" json:"entered"`
 	Author            string         `xml:"part_author" json:"author"`
-	DeepSubParts      []string       `xml:"deep_subparts" json:"deep_subparts"`
-	SpecifiedSubParts []string       `xml:"specified_subparts" json:"specified_subparts"`
-	SpecifiedSubScars []string       `xml:"specified_subscars" json:"specified_subscars"`
+	DeepSubParts      []BioSubPart   `xml:"deep_subparts>subpart" json:"deep_subparts"`
+	SpecifiedSubParts []BioSubPart   `xml:"specified_subparts>subpart" json:"specified_subparts"`
+	SpecifiedSubScars []BioSubPart   `xml:"specified_subscars>subpart" json:"specified_subscars"`
 	Features          []BioFeature   `xml:"features>feature" json:"features"`
 	Parameters        []BioParameter `xml:"parameters>parameter" json:"parameters"`
 	Categories        []string       `xml:"categories>category" json:"categories"`
@@ -51,6 +51,14 @@ type BioParameter struct {
 	Date     string `xml:"m_date" json:"m_date"`
 	UserID   int    `xml:"user_id" json:"user_id"`
 	Username string `xml:"user_name" json:"user_name"`
+}
+
+type BioSubPart struct {
+	ID       int    `xml:"part_id" json:"id"`
+	Name     string `xml:"part_name" json:"name"`
+	Desc     string `xml:"part_short_desc" json:"desc"`
+	Type     string `xml:"part_type" json:"type"`
+	Nickname string `xml:"part_nickname" json:"nickname"`
 }
 
 func QueryExtendedBiobricks(partname string) ([]ExtendedBiobrick, error) {
