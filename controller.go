@@ -2,7 +2,9 @@ package main
 
 import (
 	"crypto/md5"
+	"encoding/json"
 	"fmt"
+	"github.com/aybabtme/bricklayer/bricks"
 	"github.com/aybabtme/color/brush"
 	"github.com/gorilla/mux"
 	"net/http"
@@ -50,7 +52,7 @@ func PartsHandler(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	partData, ok, err := db.Get(fmt.Sprintf("parts/%s", name))
+	partData, ok, err := db.Get(fmt.Sprintf("%s/%s", partsPath, name))
 
 	if err != nil {
 		response := "cannot fulfill request for part named " + name
@@ -68,6 +70,93 @@ func PartsHandler(resp http.ResponseWriter, req *http.Request) {
 
 	respondIfChanged(resp, req, partData)
 
+}
+
+func ExtendedPartsHandler(resp http.ResponseWriter, req *http.Request) {
+	defer RequestTimeLog(time.Now())
+	vars := mux.Vars(req)
+	name := vars["name"]
+
+	if name == "" {
+		response := "missing biobrick name"
+		responseCode := http.StatusBadRequest
+		logInfo(req, response, responseCode)
+		http.Error(resp, response, responseCode)
+		return
+	}
+
+	partData, ok, err := db.Get(fmt.Sprintf("%s/%s", extendedPartsPath, name))
+
+	if err != nil {
+		response := "cannot fulfill request for part named " + name
+		responseCode := http.StatusServiceUnavailable
+		logErr(req, err, response, responseCode)
+		http.Error(resp, response, responseCode)
+		return
+	}
+
+	if ok {
+		respondIfChanged(resp, req, partData)
+		return
+	}
+
+	// If the part is not already in the DB, verify that it's actually a real part
+	_, partExists, err := db.Get(fmt.Sprintf("%s/%s", partsPath, name))
+	if err != nil {
+		response := "cannot fulfill request for reverse lookup on part named " + name
+		responseCode := http.StatusServiceUnavailable
+		logErr(req, err, response, responseCode)
+		http.Error(resp, response, responseCode)
+		return
+	}
+	// If it's not, give up
+	if !partExists {
+		logInfo(req, "not found", http.StatusNotFound)
+		http.NotFound(resp, req)
+		return
+	}
+
+	// If it's a real part, go query it from the iGem API
+	sout.Printf("extended part '%s' not found locally, querying iGem API", name)
+	s := time.Now()
+	parts, err := bricks.QueryExtendedBiobricks(name)
+	sout.Printf("done in %s", time.Since(s))
+
+	if err != nil {
+		response := "cannot fulfill request, iGem API lookup failed for part " + name
+		responseCode := http.StatusServiceUnavailable
+		logErr(req, err, response, responseCode)
+		http.Error(resp, response, responseCode)
+		return
+	}
+
+	if len(parts) < 1 {
+		logInfo(req, "part not found on iGem API, but should be there, part="+name, http.StatusNotFound)
+		http.NotFound(resp, req)
+		return
+	}
+
+	if len(parts) > 1 {
+		sout.Printf("found %d parts instead of 1 for name=%s", len(parts), name)
+	}
+
+	partRawJSON := make([][]byte, len(parts))
+	for i, part := range parts {
+		partRawJSON[i], err = json.Marshal(part)
+		if err != nil {
+			response := "cannot fulfill request, iGem API lookup failed for part " + name
+			responseCode := http.StatusServiceUnavailable
+			logErr(req, err, response, responseCode)
+			http.Error(resp, response, responseCode)
+			return
+		}
+		respondIfChanged(resp, req, partRawJSON[i])
+
+		// Persist it asynchronously
+		go func(name string, data []byte) {
+			db.Put(fmt.Sprintf("%s/%s", extendedPartsPath, name), data)
+		}(part.Name, partRawJSON[i])
+	}
 }
 
 func computeHash(data []byte) string {

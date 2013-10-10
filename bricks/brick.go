@@ -9,17 +9,17 @@ import (
 	"strings"
 )
 
-type Biobrick struct {
-	bioAbstract
-	Sequence string `json: "sequence"`
-}
-
 type bioAbstract struct {
 	PartName string `json: "partName"`
 	Status   string `json: "status"`
 	ID       int    `json: "id"`
 	Type     string `json: "type"`
 	Desc     string `json: "desc"`
+}
+
+type Biobrick struct {
+	bioAbstract
+	Sequence string `json: "sequence"`
 }
 
 func abstractFromString(abstract string) (*bioAbstract, error) {

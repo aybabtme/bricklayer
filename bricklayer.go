@@ -15,10 +15,12 @@ import (
 )
 
 const (
-	defaultPort = 3000
-	partsPath   = "parts"
-	indexPath   = "index"
-	partsIndex  = "parts"
+	defaultPort       = 3000
+	partsPath         = "parts"
+	extendedPartsPath = "extended"
+
+	indexPath  = "index"
+	partsIndex = "parts"
 )
 
 var (
@@ -63,6 +65,8 @@ func main() {
 	router := mux.NewRouter()
 	router.HandleFunc(fmt.Sprintf("/api/%s/", partsPath), AllPartsHandler)
 	router.HandleFunc(fmt.Sprintf("/api/%s/{name}", partsPath), PartsHandler)
+	router.HandleFunc(fmt.Sprintf("/api/%s/", extendedPartsPath), AllPartsHandler)
+	router.HandleFunc(fmt.Sprintf("/api/%s/{name}", extendedPartsPath), ExtendedPartsHandler)
 	http.Handle("/", router)
 
 	listenAddr := fmt.Sprintf(":%d", *port)
