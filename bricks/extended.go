@@ -15,6 +15,7 @@ type ExtendedBiobrick struct {
 	Name              string         `xml:"part_name" json:"name"`
 	ShortName         string         `xml:"part_short_name" json:"short_name"`
 	Desc              string         `xml:"part_short_desc" json:"short_desc"`
+	Sequences         []string       `xml:"sequences>seq_data" json:"sequences"`
 	FullType          string         `xml:"part_type" json:"type"`
 	ReleaseStatus     string         `xml:"release_status" json:"release_status"`
 	SampleStatus      string         `xml:"sample_status" json:"sample_status"`
